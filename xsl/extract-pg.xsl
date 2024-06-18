@@ -32,27 +32,35 @@
     extension-element-prefixes="str"
 >
 
-<!-- This style sheet is intended to be used by the ptx script. It makes   -->
-<!-- several Python dictionaries that the ptx script will use to create a  -->
-<!-- single XML file called webwork-representations.xml with various       -->
-<!-- representations of each webwork.                                      -->
+<!-- This style sheet is intended to be used by pretext.py. It makes an    -->
+<!-- ephemeral XML tree with data about each webwork exercise in the PTX   -->
+<!-- project. This will be used by pretext.py in conjuction with some form -->
+<!-- of renderer (webwork2, local PG, or the standalone renderer) to       -->
+<!-- create an XML file called webwork-representations.xml with various    -->
+<!-- representations of each                                               -->
 
-<!-- Each dictionary uses the webworks' visible-ids as keys. There are     -->
-<!-- dictionaries for obtaining:                                           -->
-<!-- 1. a ptx|server flag (authored in PTX [or a copy], or from server)    -->
-<!-- 1b. if it is copied, from which?                                      -->
-<!-- 2. a seed for randomization (with a default explicitly declared)      -->
-<!-- 3. source (a problem's file path if it is server-based)               -->
-<!-- 4. human readable PG (for PTX-authored)                               -->
-<!-- 5. PG optimized (and less human-readable) for use in PTX output modes -->
+<!-- Then for each exercise, we record:                                    -->
+<!-- 1.  "generated" (it was authored in PTX and has been exported to a    -->
+<!--     file in generated/pg/)                                            -->
+<!--     or "external" (it is specified in source using a file path to     -->
+<!--     within external/pg/)                                              -->
+<!--     or "webwork2" (it is specified in source using a file path,       -->
+<!--     to somewhere in a webwork2 host course)                           -->
+<!-- 1b. if it is copied, from which webwork?                              -->
+<!-- 2.  a seed for randomization (with a default explicitly declared)     -->
+<!-- 3.  source (a problem's file path, either in "generated", "external", -->
+<!--     or in a webwork2 host course)                                     -->
+<!-- 4.  human readable PG (for PTX-authored exercises)                    -->
+<!-- 5.  PG optimized (and less human-readable) for use in PTX output modes-->
+
+<!-- The top of the ephemeral XML tree has some global attributes.         -->
 
 <!-- The pretext/pretext script (-c webwork) uses all this to build a      -->
 <!-- single XML file (called webwork-representations.xml) containing       -->
 <!-- multiple representations of each webwork problem. The pretext/pretext -->
 <!-- script must be re-run whenever something changes with author source   -->
-<!-- within a webwork element. Or if something changes with a .pg file     -->
-<!-- that lives on a server. Or if the configuration of the hosting server -->
-<!-- or course changes.                                                    -->
+<!-- within a webwork element. Or if something changes with a .pg file.    -->
+<!-- Or if some configuration changes.                                     -->
 
 <!-- Then other translation sheets' assembly phase will factor in          -->
 <!-- webwork-representations.xml                                           -->
@@ -122,6 +130,14 @@
                 </course-password>
             </xsl:if>
         </server-params-pub>
+        <processing>
+            <xsl:attribute name="static">
+                <xsl:value-of select="$webwork-static-processing"/>
+            </xsl:attribute>
+            <xsl:attribute name="interactive">
+                <xsl:value-of select="$webwork-interactive-processing"/>
+            </xsl:attribute>
+        </processing>
         <xsl:apply-imports/>
     </ww-extraction>
 </xsl:template>
@@ -135,17 +151,54 @@
         <xsl:attribute name="id">
             <xsl:value-of select="$problem" />
         </xsl:attribute>
-        <!-- 1. a ptx|copy|server flag (authored in PTX, a copy, or from server)   -->
+        <!-- 1. a generated|external|webwork2 flag                                 -->
         <xsl:attribute name="origin">
-            <xsl:text>server</xsl:text>
+            <xsl:text>webwork2</xsl:text>
         </xsl:attribute>
+        <!-- 1b. if this problem is a copy, record where it was copied from        -->
+        <xsl:if test="@copied-from">
+            <xsl:attribute name="copied-from">
+                <xsl:value-of select="@copied-from"/>
+            </xsl:attribute>
+        </xsl:if>
         <!-- 2. a seed for randomization (with a default explicitly declared)      -->
         <xsl:attribute name="seed">
             <xsl:apply-templates select="." mode="get-seed" />
         </xsl:attribute>
-        <!-- 3. source (a problem's file path if it is server-based)               -->
+        <!-- 3. source file                                                        -->
         <xsl:attribute name="source">
             <xsl:value-of select="@source" />
+        </xsl:attribute>
+    </problem>
+</xsl:template>
+
+<xsl:template match="webwork[@local]" mode="extraction">
+    <!-- Define values for the visible-id as key -->
+    <xsl:variable name="problem">
+        <xsl:value-of select="@ww-id"/>
+    </xsl:variable>
+    <problem>
+        <xsl:attribute name="id">
+            <xsl:value-of select="$problem" />
+        </xsl:attribute>
+        <!-- 1. a generated|external|webwork2 flag                                 -->
+        <xsl:attribute name="origin">
+            <xsl:text>external</xsl:text>
+        </xsl:attribute>
+        <!-- 1b. if this problem is a copy, record where it was copied from        -->
+        <xsl:if test="@copied-from">
+            <xsl:attribute name="copied-from">
+                <xsl:value-of select="@copied-from"/>
+            </xsl:attribute>
+        </xsl:if>
+        <!-- 2. a seed for randomization (with a default explicitly declared)      -->
+        <xsl:attribute name="seed">
+            <xsl:apply-templates select="." mode="get-seed" />
+        </xsl:attribute>
+        <!-- 3. source file                                                        -->
+        <xsl:attribute name="source">
+            <xsl:value-of select="$external-directory"/>
+            <xsl:value-of select="@local" />
         </xsl:attribute>
     </problem>
 </xsl:template>
@@ -159,9 +212,9 @@
         <xsl:attribute name="id">
             <xsl:value-of select="$problem" />
         </xsl:attribute>
-        <!-- 1. a ptx|server flag (authored in PTX [or a copy], or from server)    -->
+        <!-- 1. a generated|external|webwork2 flag                                 -->
         <xsl:attribute name="origin">
-            <xsl:text>ptx</xsl:text>
+            <xsl:text>generated</xsl:text>
         </xsl:attribute>
         <!-- 1b. if this problem is a copy, record where it was copied from        -->
         <xsl:if test="@copied-from">
@@ -172,6 +225,10 @@
         <!-- 2. a seed for randomization (with a default explicitly declared)      -->
         <xsl:attribute name="seed">
             <xsl:apply-templates select="." mode="get-seed" />
+        </xsl:attribute>
+        <!-- 3. source file                                                        -->
+        <xsl:attribute name="source">
+            <xsl:apply-templates select="." mode="filename"/>
         </xsl:attribute>
         <!-- 4. human readable PG (for PTX-authored)                               -->
         <pghuman>
@@ -213,6 +270,49 @@
             </xsl:apply-templates>
         </pgdense>
     </problem>
+</xsl:template>
+
+<!-- Append a filename to the directory path              -->
+<xsl:template match="webwork[statement|task]" mode="filename">
+    <xsl:value-of select="$generated-directory"/>
+    <xsl:text>pg/</xsl:text>
+    <xsl:apply-templates select="." mode="directory-path" />
+    <xsl:apply-templates select="parent::exercise" mode="numbered-title-filesafe" />
+    <xsl:text>.pg</xsl:text>
+</xsl:template>
+
+<!-- Directory path, recursively climb structural nodes,  -->
+<!-- record names as pass up through chunk-level barrier  -->
+<!-- Includes root document node (book, article, etc)     -->
+<xsl:template match="*" mode="directory-path">
+    <xsl:variable name="structural">
+        <xsl:apply-templates select="." mode="is-structural"/>
+    </xsl:variable>
+    <xsl:variable name="current-level">
+        <xsl:choose>
+            <xsl:when test="$structural = 'true'">
+                <xsl:apply-templates select="." mode="level" />
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:text>undefined</xsl:text>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:variable>
+    <xsl:choose>
+        <xsl:when test="self::mathbook|self::pretext" /> <!-- done -->
+        <xsl:when test="$structural='false'">  <!-- skip up -->
+            <xsl:apply-templates select="parent::*" mode="directory-path" />
+        </xsl:when>
+        <!-- structural is true now, compare levels -->
+        <xsl:when test="$current-level > $chunk-level">  <!-- also skip up -->
+            <xsl:apply-templates select="parent::*" mode="directory-path" />
+        </xsl:when>
+        <xsl:otherwise> <!-- append current node name -->
+            <xsl:apply-templates select="parent::*" mode="directory-path" />
+            <xsl:apply-templates select="." mode="numbered-title-filesafe" />
+            <xsl:text>/</xsl:text>
+        </xsl:otherwise>
+    </xsl:choose>
 </xsl:template>
 
 <!-- ################ -->

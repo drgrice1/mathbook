@@ -10,9 +10,10 @@
 //Styling:
 // TODO: Review all styling in all scenarios (staged/not, correct/partly-correct/incorrect/blank, single/multiple)
 
-function handleWW(ww_id, action) {
+async function handleWW(ww_id, action) {
     const ww_container = document.getElementById(ww_id);
     const ww_domain = ww_container.dataset.domain;
+    const ww_origin = ww_container.dataset.origin;
     const ww_problemSource = ww_container.dataset.problemsource;
     const ww_sourceFilePath = ww_container.dataset.sourcefilepath;
     const ww_course_id = ww_container.dataset.courseid;
@@ -72,35 +73,51 @@ function handleWW(ww_id, action) {
         ww_container.tabIndex = -1;
     }
 
-    let url;
+    let url = new URL(ww_domain + '/webwork2/render_rpc');
+    let formData = new FormData();
 
     if (action == 'check') {
         const iframe = ww_container.querySelector('.problem-iframe');
-        const formData = new FormData(iframe.contentDocument.getElementById(ww_id + "-form"));
-        const params = new URLSearchParams(formData);
-        url = new URL(ww_domain + '/webwork2/render_rpc?' + params.toString())
-        url.searchParams.append("answersSubmitted", '1');
-        url.searchParams.append('WWsubmit', "1");
+        formData = new FormData(iframe.contentDocument.getElementById(ww_id + "-form"));
+        formData.set("answersSubmitted", '1');
+        formData.set('WWsubmit', "1");
+        if (ww_origin == 'generated') {
+            const rawProblemSource = await fetch(ww_problemSource).then((r) => r.text());
+            formData.set("rawProblemSource", rawProblemSource);
+        }
+        else if (ww_origin == 'external') {
+            const rawProblemSource = await fetch(ww_sourceFilePath).then((r) => r.text());
+            formData.set("rawProblemSource", rawProblemSource);
+        }
+        else if (ww_origin == 'webwork2') formData.set("sourceFilePath", ww_sourceFilePath);
     } else {
-        url = new URL(ww_domain + '/webwork2/render_rpc');
-        url.searchParams.append("problemSeed", ww_container.dataset.current_seed);
-        if (ww_problemSource) url.searchParams.append("problemSource", ww_problemSource);
-        else if (ww_sourceFilePath) url.searchParams.append("sourceFilePath", ww_sourceFilePath);
-        url.searchParams.append("answersSubmitted", '0');
-        url.searchParams.append("displayMode", "MathJax");
-        url.searchParams.append("courseID", ww_course_id);
-        url.searchParams.append("user", ww_user_id);
-        url.searchParams.append("passwd", ww_course_password);
-        url.searchParams.append("disableCookes", '1');
-        url.searchParams.append("outputformat", "raw");
+        formData.set("problemSeed", ww_container.dataset.current_seed);
+        if (ww_origin == 'generated') {
+            const rawProblemSource = await fetch(ww_problemSource).then((r) => r.text());
+            formData.set("rawProblemSource", rawProblemSource);
+        }
+        else if (ww_origin == 'external') {
+            const rawProblemSource = await fetch(ww_sourceFilePath).then((r) => r.text());
+            formData.set("rawProblemSource", rawProblemSource);
+        }
+        else if (ww_origin == 'webwork2') formData.set("sourceFilePath", ww_sourceFilePath);
+        formData.set("answersSubmitted", '0');
+        formData.set("displayMode", "MathJax");
+        formData.set("courseID", ww_course_id);
+        formData.set("user", ww_user_id);
+        formData.set("userID", ww_user_id);
+        formData.set("passwd", ww_course_password);
+        formData.set("course_password", ww_course_password);
+        formData.set("password", ww_course_password);
+        formData.set("disableCookies", '1');
+        formData.set("outputformat", "raw");
         // note ww_container.dataset.hasSolution is a string, possibly 'false' which is true
-        url.searchParams.append("showSolutions", ww_container.dataset.hasSolution == 'true' ? '1' : '0');
-        url.searchParams.append("showHints", ww_container.dataset.hasHint == 'true' ? '1' : '0');
-        url.searchParams.append("problemUUID",ww_id);
+        formData.set("showSolutions", ww_container.dataset.hasSolution == 'true' ? '1' : '0');
+        formData.set("showHints", ww_container.dataset.hasHint == 'true' ? '1' : '0');
+        formData.set("problemUUID",ww_id);
     }
 
-    // get the json and do stuff with what we get
-    $.getJSON(url.toString(), (data) => {
+    $.post(url, Object.fromEntries(formData), (data) => {
         // Create the form that will contain the text and input fields of the interactive problem.
         const form = document.createElement("form");
         form.id = ww_id + "-form";
@@ -208,7 +225,7 @@ function handleWW(ww_id, action) {
         };
 
         if (ww_sourceFilePath) wwInputs.sourceFilePath = ww_sourceFilePath;
-        else if (ww_problemSource) wwInputs.problemSource = ww_problemSource;
+        else if (ww_problemSource && ww_origin == 'webwork2') wwInputs.problemSource = ww_problemSource;
 
         for (const wwInputName of Object.keys(wwInputs)) {
             const input = document.createElement('input');
@@ -448,7 +465,7 @@ function handleWW(ww_id, action) {
 
         // Place focus on the problem.
         ww_container.focus()
-    });
+    }, "json");
 }
 
 function WWshowCorrect(ww_id, answers) {
@@ -616,7 +633,7 @@ function translateHintSol(ww_id, body_div, ww_domain, b_ptx_has_hint, b_ptx_has_
         knowlSummary.className = '';
         knowlSummary.classList.add('knowl__link');
 
-        const summaryLabel = knowlSummary.getElementsByTagName('div')[0];
+        const summaryLabel = knowlSummary.children[0];
         summaryLabel.remove();
 
         const newLabelSpan = document.createElement('span');

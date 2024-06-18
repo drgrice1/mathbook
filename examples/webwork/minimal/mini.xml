@@ -62,6 +62,12 @@
           </solution>
         </webwork>
       </exercise>
+      <exercise>
+        <webwork source="Library/PCC/BasicAlgebra/Geometry/CylinderVolume10.pg"/>
+      </exercise>
+      <exercise>
+        <webwork local="pg/newProblem.pg"/>
+      </exercise>
     </section>
   </article>
 </pretext>

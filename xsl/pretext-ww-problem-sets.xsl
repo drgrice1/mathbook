@@ -128,6 +128,8 @@
 
 <!-- Append a filename to the directory path              -->
 <xsl:template match="webwork-reps" mode="filename">
+    <xsl:value-of select="$generated-directory"/>
+    <xsl:text>pg/</xsl:text>
     <xsl:apply-templates select="." mode="directory-path" />
     <xsl:apply-templates select="parent::exercise" mode="numbered-title-filesafe" />
     <xsl:text>.pg</xsl:text>

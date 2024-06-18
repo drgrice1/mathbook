@@ -223,7 +223,7 @@ along with MathBook XML.  If not, see <http://www.gnu.org/licenses/>.
             <xsl:value-of select="$document-root//webwork-reps[1]/server-url[1]/@domain" />
         </xsl:when>
         <xsl:when test="$webwork-reps-version = 2">
-            <xsl:value-of select="$document-root//webwork-reps[1]/server-data/@domain" />
+            <xsl:value-of select="$document-root//webwork-reps[1]/rendering-data/@domain" />
         </xsl:when>
     </xsl:choose>
 </xsl:variable>
@@ -10460,26 +10460,29 @@ along with MathBook XML.  If not, see <http://www.gnu.org/licenses/>.
                 <xsl:with-param name="string-id" select="'solution'"/>
             </xsl:apply-templates>
         </xsl:attribute>
+        <xsl:attribute name="data-origin">
+            <xsl:value-of select="rendering-data/@origin"/>
+        </xsl:attribute>
         <xsl:choose>
-            <xsl:when test="server-data/@problemSource">
+            <xsl:when test="rendering-data/@problemSource">
                 <xsl:attribute name="data-problemSource">
-                    <xsl:value-of select="server-data/@problemSource"/>
+                    <xsl:value-of select="rendering-data/@problemSource"/>
                 </xsl:attribute>
             </xsl:when>
-            <xsl:when test="server-data/@sourceFilePath">
+            <xsl:when test="rendering-data/@sourceFilePath">
                 <xsl:attribute name="data-sourceFilePath">
-                    <xsl:value-of select="server-data/@sourceFilePath"/>
+                    <xsl:value-of select="rendering-data/@sourceFilePath"/>
                 </xsl:attribute>
             </xsl:when>
         </xsl:choose>
         <xsl:attribute name="data-courseID">
-            <xsl:value-of select="server-data/@course-id"/>
+            <xsl:value-of select="rendering-data/@course-id"/>
         </xsl:attribute>
         <xsl:attribute name="data-userID">
-            <xsl:value-of select="server-data/@user-id"/>
+            <xsl:value-of select="rendering-data/@user-id"/>
         </xsl:attribute>
         <xsl:attribute name="data-coursePassword">
-            <xsl:value-of select="server-data/@course-password"/>
+            <xsl:value-of select="rendering-data/@course-password"/>
         </xsl:attribute>
         <xsl:attribute name="aria-live">
             <xsl:value-of select="'polite'"/>

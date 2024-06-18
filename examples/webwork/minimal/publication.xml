@@ -24,5 +24,15 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
     <source>
       <directories generated="generated" external="external"/>
     </source>
+    <webwork
+        server="https://webwork-ptx.aimath.org"
+        course="anonymous"
+        coursepassword="anonymous"
+        user="anonymous"
+        userpassword="anonymous"
+        task-reveal="preceding-correct"
+        static-processing="webwork2"
+        interactive-processing="webwork2"
+        />
 
 </publication>
