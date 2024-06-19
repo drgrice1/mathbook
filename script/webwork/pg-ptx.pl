@@ -23,7 +23,7 @@ GetOptions(
 	'u|uuid=s'            => \$problemUUID,
 	'e|externalFileDir=s' => \$templateDirectory,
 	't|tempDirectory=s'   => \$tempDirectory,
-	'm|extraMacroDir'     => \@extraMacroDirs
+	'm|extraMacroDir=s'   => \@extraMacroDirs
 );
 
 if ($showVersion) {
