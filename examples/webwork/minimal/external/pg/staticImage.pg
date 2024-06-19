@@ -1,0 +1,9 @@
+DOCUMENT();
+
+loadMacros('PGstandard.pl', 'PGML.pl', 'PGcourse.pl');
+
+BEGIN_PGML
+[!image from some GeoGebra problem!]{'AF7-c2-d3.png'}{320}
+END_PGML
+
+ENDDOCUMENT();

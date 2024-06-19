@@ -25,13 +25,13 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
       <directories generated="generated" external="external"/>
     </source>
     <webwork
-        server="https://webwork-ptx.aimath.org"
+        server="https://webwork-dev.aimath.org"
         course="anonymous"
         coursepassword="anonymous"
         user="anonymous"
         userpassword="anonymous"
         task-reveal="preceding-correct"
-        static-processing="webwork2"
+        static-processing="local"
         interactive-processing="webwork2"
         />
 

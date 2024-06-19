@@ -68,6 +68,12 @@
       <exercise>
         <webwork local="pg/newProblem.pg"/>
       </exercise>
+      <exercise>
+        <webwork local="pg/tikz_macro.pg" seed="2143" />
+      </exercise>
+      <exercise>
+        <webwork local="pg/staticImage.pg" seed="5123" />
+      </exercise>
     </section>
   </article>
 </pretext>

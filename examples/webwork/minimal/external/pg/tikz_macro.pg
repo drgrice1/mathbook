@@ -1,0 +1,103 @@
+DOCUMENT();
+
+loadMacros(
+    'PGstandard.pl',         'PGML.pl',
+    'parserRadioButtons.pl', 'PGtikz.pl',
+    'PGcourse.pl'
+);
+
+# Variables and Formulas
+
+do { $a = random(-10, 9); } until $a != -1;
+do { $b = random(-10, 9); } until $b != -1;
+
+Context('Point');
+$point = Compute("($a, $b)");
+
+if    ($a > 0 && $b > 0)   { $location_index = 0; }
+elsif ($a < 0 && $b > 0)   { $location_index = 1; }
+elsif ($a < 0 && $b < 0)   { $location_index = 2; }
+elsif ($a > 0 && $b < 0)   { $location_index = 3; }
+elsif ($a != 0 && $b == 0) { $location_index = 4; }
+elsif ($a == 0 && $b != 0) { $location_index = 5; }
+else                       { $location_index = 6; }
+
+$location = RadioButtons(
+    [ [
+        'Quadrant I',
+        'Quadrant II',
+        'Quadrant III',
+        'Quadrant IV',
+        '\(x\)-axis',
+        '\(y\)-axis',
+        'Origin'
+    ] ],
+    $location_index,
+    labels => 'ABC'
+);
+
+# Graph
+$graph = createTikZImage();
+$graph->tikzLibraries('arrows.meta');
+$graph->tikzOptions('x=0.6cm,y=0.6cm');
+
+$graph->BEGIN_TIKZ
+\tikzset{>={Stealth[scale=1.8]}}
+\filldraw[draw=blue,fill=white,rounded corners=14pt,thick,use as bounding box]
+(-11,-11) rectangle (11,11);
+\begin{scope}
+	\clip[rounded corners=14pt] (-11,-11) rectangle (11,11);
+	\draw[line width=0.2pt,color=gray,step=1] (-11,-11) grid (11,11);
+\end{scope}
+\huge
+flaw
+\draw[<->,thick] (-11,0) -- (11,0) node[above left,outer sep=2pt]{\(x\)};
+\draw[<->,thick] (0,-11) -- (0,11) node[below right,outer sep=2pt]{\(y\)};
+\foreach \x in {-10,-8,...,-2,2,4,...,10} \draw[thin] (\x,5pt) -- (\x,-5pt)
+node[below]{\(\x\)};
+\foreach \y in {-10,-8,...,-2,2,4,...,10} \draw[thin] (5pt,\y) -- (-5pt,\y)
+node[left]{\(\y\)};
+\filldraw[red] ($a,$b) circle[radius=5pt];
+END_TIKZ
+
+$graph_alt =
+    'Graph of a point that is '
+    . ($a < 0 ? (abs($a) . ' units to the left of the y-axis')
+        : "$a units to the right of the y-axis")
+    . ' and '
+    . ($b < 0 ? (abs($b) . ' units below of the x-axis')
+        : "$b units above the y-axis");
+
+# Main Text
+BEGIN_PGML
+Give the ordered pair [`(x, y)`] of the point shown on the grid and determine where it lies.
+
+[![$graph_alt]!]{$graph}{300}
+
+The ordered pair associated with the given point is [_]{$point}{15}.
+
+_(Give an ordered pair.)_
+
+Where does the point lie?
+
+[_]{$location}
+END_PGML
+
+# Solution
+BEGIN_PGML_SOLUTION
+The point is [@ abs($a) @] units to the [@ $a >= 0 ? 'right' : 'left' @] of the [`y`]-axis, and
+[@ abs($b) @] units [@ $b >= 0 ? 'above' : 'below' @] the [`x`]-axis.
+
+So the ordered pair associated with the given point is [`[$point]`] and the point is located
+[@
+    if ($a > 0 && $b > 0) { 'in quadrant I'; }
+    elsif ($a < 0 && $b > 0) { 'in quadrant II'; }
+    elsif ($a < 0 && $b < 0) { 'in quadrant III'; }
+    elsif ($a > 0 && $b < 0) { 'in quadrant IV'; }
+    elsif ($a != 0 && $b == 0) { 'on the \(x\)-axis'; }
+    elsif ($a == 0 && $b != 0) { 'on the \(y\)-axis'; }
+    else { 'at the origin'; }
+@]* ([$location->cmp->rh_ans->{correct_ans}]).
+END_PGML_SOLUTION
+
+ENDDOCUMENT();

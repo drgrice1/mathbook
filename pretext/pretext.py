@@ -1061,6 +1061,14 @@ def webwork_to_xml(
         "string parameters passed to extraction stylesheet: {}".format(stringparams)
     )
 
+    static_processing = 'webwork2'
+    if pub_file:
+        # parse publisher file, xinclude is conceivable
+        # for multiple similar publisher files with common parts
+        pub_tree = ET.parse(pub_file)
+        pub_tree.xinclude()
+        static_processing = pub_tree.xpath("/publication/webwork/@static-processing")[0]
+
     # Either we have a "generated" directory, or we must assume placing everything in dest_dir
     generated_dir, _ = get_managed_directories(xml_source, pub_file)
     if generated_dir:
@@ -1286,158 +1294,198 @@ def webwork_to_xml(
             )
         log.info(msg)
 
-        # If and only if the server is version 2.16, we adjust PG code to use PGtikz.pl
-        # instead of PGlateximage.pl
-        if ww_major_version == 2 and ww_minor_version == 16 and origin[problem] == "generated":
-            pgdense[problem] = pgdense[problem].replace('PGlateximage.pl','PGtikz.pl')
-            pgdense[problem] = pgdense[problem].replace('createLaTeXImage','createTikZImage')
-            pgdense[problem] = pgdense[problem].replace('BEGIN_LATEX_IMAGE','BEGIN_TIKZ')
-            pgdense[problem] = pgdense[problem].replace('END_LATEX_IMAGE','END_TIKZ')
-            pghuman[problem] = pghuman[problem].replace('PGlateximage.pl','PGtikz.pl')
-            pghuman[problem] = pghuman[problem].replace('createLaTeXImage','createTikZImage')
-            pghuman[problem] = pghuman[problem].replace('BEGIN_LATEX_IMAGE','BEGIN_TIKZ')
-            pghuman[problem] = pghuman[problem].replace('END_LATEX_IMAGE','END_TIKZ')
-            # We crudely remove tikzpicture environment delimiters
-            pgdense[problem] = pgdense[problem].replace('\\begin{tikzpicture}','')
-            pgdense[problem] = pgdense[problem].replace('\\end{tikzpicture}','')
-            pghuman[problem] = pghuman[problem].replace('\\begin{tikzpicture}','')
-            pghuman[problem] = pghuman[problem].replace('\\end{tikzpicture}','')
+        if static_processing == 'local' and origin[problem] != 'webwork2':
+            pgscript = os.path.join(get_ptx_path(), 'script', 'webwork', 'pg-ptx.pl')
+            perl_executable_cmd = get_executable_cmd('perl')[0]
+            tmp_dir = get_temporary_directory()
 
-        # The code in pgdense[problem] may have `$refreshCachedImages=1;`
-        # We want to keep this for the code that is sent to the server for static harvesting,
-        # but kill this for the code that is used repeatedly by embedded problems in HTML
-        # So here we branch a copy for embedding where we kill `$refreshCachedImages=1;`
-        # But we can't literally just remove that, since an author may have used something
-        # like `$refreshCachedImages  =  'true' ;` so instead, we change `$refreshCachedImages`
-        # to something inert
-        if origin[problem] == "generated":
-            embed_problem = re.sub(r'(\$refreshCachedImages)(?![\w\d])', r'\1Inert', pgdense[problem])
+            extra_macro_dirs = []
 
-        # make base64 for PTX problems for webwork prior to 2.19
-        if origin[problem] == "generated":
-            if ww_reps_version == "2" and ww_minor_version < 19:
-                pgbase64 = base64.b64encode(bytes(pgdense[problem], "utf-8")).decode(
-                    "utf-8"
-                )
-                embed_problem_base64 = base64.b64encode(bytes(embed_problem, "utf-8")).decode(
-                    "utf-8"
-                )
-            elif ww_reps_version == "1":
-                pgbase64 = {}
-                for hint_sol in [
-                    "hint_yes_solution_yes",
-                    "hint_yes_solution_no",
-                    "hint_no_solution_yes",
-                    "hint_no_solution_no",
-                ]:
-                    pgbase64[hint_sol] = base64.b64encode(
-                        bytes(pgdense[hint_sol][problem], "utf-8")
-                    )
+            generated_dir, _ = get_managed_directories(xml_source, pub_file)
+            if os.path.exists(os.path.join(generated_dir, 'webwork', 'macros')):
+                extra_macro_dirs.append('--extraMacroDir')
+                extra_macro_dirs.append(os.path.join(generated_dir, 'webwork', 'macros'))
 
-        # Construct URL to get static version from server
-        # WW server can react to a
-        #   URL of a problem stored there already
-        #   or a base64 encoding of a problem
-        # server_params is tuple rather than dictionary to enforce consistent order in url parameters
-        if ww_reps_version == "2":
-            if ww_minor_version >= 19:
-                if origin[problem] == "webwork2":
-                    server_params_source = {"sourceFilePath":source[problem]}
-                elif origin[problem] == "external":
-                    server_params_source = {"rawProblemSource":pathlib.Path(source[problem]).read_text()}
-                else:
-                    server_params_source = {"rawProblemSource":pghuman[problem]}
+            if os.path.exists(os.path.join(external_dir, 'macros')):
+                extra_macro_dirs.append('--extraMacroDir')
+                extra_macro_dirs.append(os.path.join(external_dir, 'macros'))
+
+            if origin[problem] == 'generated':
+                server_params_source = ['--source', pghuman[problem]]
             else:
+                server_params_source = ['--sourceFilePath', source[problem].replace('external/', '')]
+            try:
+                response = subprocess.Popen(
+                    [
+                        perl_executable_cmd, pgscript,
+                        '--seed', seed[problem],
+                        '--uuid', problem,
+                        '--externalFileDir', external_dir,
+                        '--tempDirectory', tmp_dir,
+                        *server_params_source,
+                        *extra_macro_dirs,
+                    ],
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    env={ "PG_ROOT": '/opt/webwork/pg' }
+                ).communicate()[0]
+            except Exception as e:
+                raise ValueError("PTX:ERROR:   There was a an error executing the PG script.\n" + str(e))
+        else:
+            # If and only if the server is version 2.16, we adjust PG code to use PGtikz.pl
+            # instead of PGlateximage.pl
+            if ww_major_version == 2 and ww_minor_version == 16 and origin[problem] == "generated":
+                pgdense[problem] = pgdense[problem].replace('PGlateximage.pl','PGtikz.pl')
+                pgdense[problem] = pgdense[problem].replace('createLaTeXImage','createTikZImage')
+                pgdense[problem] = pgdense[problem].replace('BEGIN_LATEX_IMAGE','BEGIN_TIKZ')
+                pgdense[problem] = pgdense[problem].replace('END_LATEX_IMAGE','END_TIKZ')
+                pghuman[problem] = pghuman[problem].replace('PGlateximage.pl','PGtikz.pl')
+                pghuman[problem] = pghuman[problem].replace('createLaTeXImage','createTikZImage')
+                pghuman[problem] = pghuman[problem].replace('BEGIN_LATEX_IMAGE','BEGIN_TIKZ')
+                pghuman[problem] = pghuman[problem].replace('END_LATEX_IMAGE','END_TIKZ')
+                # We crudely remove tikzpicture environment delimiters
+                pgdense[problem] = pgdense[problem].replace('\\begin{tikzpicture}','')
+                pgdense[problem] = pgdense[problem].replace('\\end{tikzpicture}','')
+                pghuman[problem] = pghuman[problem].replace('\\begin{tikzpicture}','')
+                pghuman[problem] = pghuman[problem].replace('\\end{tikzpicture}','')
+
+            # The code in pgdense[problem] may have `$refreshCachedImages=1;`
+            # We want to keep this for the code that is sent to the server for static harvesting,
+            # but kill this for the code that is used repeatedly by embedded problems in HTML
+            # So here we branch a copy for embedding where we kill `$refreshCachedImages=1;`
+            # But we can't literally just remove that, since an author may have used something
+            # like `$refreshCachedImages  =  'true' ;` so instead, we change `$refreshCachedImages`
+            # to something inert
+            if origin[problem] == "generated":
+                embed_problem = re.sub(r'(\$refreshCachedImages)(?![\w\d])', r'\1Inert', pgdense[problem])
+
+            # make base64 for PTX problems for webwork prior to 2.19
+            if origin[problem] == "generated":
+                if ww_reps_version == "2" and ww_minor_version < 19:
+                    pgbase64 = base64.b64encode(bytes(pgdense[problem], "utf-8")).decode(
+                        "utf-8"
+                    )
+                    embed_problem_base64 = base64.b64encode(bytes(embed_problem, "utf-8")).decode(
+                        "utf-8"
+                    )
+                elif ww_reps_version == "1":
+                    pgbase64 = {}
+                    for hint_sol in [
+                        "hint_yes_solution_yes",
+                        "hint_yes_solution_no",
+                        "hint_no_solution_yes",
+                        "hint_no_solution_no",
+                    ]:
+                        pgbase64[hint_sol] = base64.b64encode(
+                            bytes(pgdense[hint_sol][problem], "utf-8")
+                        )
+
+            # Construct URL to get static version from server
+            # WW server can react to a
+            #   URL of a problem stored there already
+            #   or a base64 encoding of a problem
+            # server_params is tuple rather than dictionary to enforce consistent order in url parameters
+            if ww_reps_version == "2":
+                if ww_minor_version >= 19:
+                    if origin[problem] == "webwork2":
+                        server_params_source = {"sourceFilePath":source[problem]}
+                    elif origin[problem] == "external":
+                        server_params_source = {"rawProblemSource":pathlib.Path(source[problem]).read_text()}
+                    else:
+                        server_params_source = {"rawProblemSource":pghuman[problem]}
+                else:
+                    server_params_source = (
+                        ("sourceFilePath", source[problem])
+                        if origin[problem] == "webwork2"
+                        else ("problemSource", pgbase64)
+                    )
+            elif ww_reps_version == "1":
                 server_params_source = (
                     ("sourceFilePath", source[problem])
                     if origin[problem] == "webwork2"
-                    else ("problemSource", pgbase64)
-                )
-        elif ww_reps_version == "1":
-            server_params_source = (
-                ("sourceFilePath", source[problem])
-                if origin[problem] == "webwork2"
-                else ("problemSource", pgbase64["hint_yes_solution_yes"])
-            )
-
-        if ww_reps_version == "2" and ww_minor_version >= 19:
-            server_params = {
-                "answersSubmitted": "0",
-                "showSolutions": "1",
-                "showHints": "1",
-                "displayMode": "PTX",
-                "courseID": courseID,
-                "user": user,
-                "passwd": passwd,
-                "outputformat": "ptx",
-                "problemSeed": seed[problem],
-                "problemUUID": problem,
-            }
-            server_params.update(server_params_source)
-        else:
-            server_params = (
-                ("answersSubmitted", "0"),
-                ("showSolutions", "1"),
-                ("showHints", "1"),
-                ("displayMode", "PTX"),
-                ("courseID", courseID),
-                ("user", user),
-                ("passwd", passwd),
-                ("outputformat", "ptx"),
-                server_params_source,
-                ("problemSeed", seed[problem]),
-                ("problemUUID", problem),
-            )
-
-        msg = "sending {} to server to save in {}: origin is '{}'"
-        log.info(msg.format(problem, ww_reps_file, origin[problem]))
-        if origin[problem] == "external" or origin[problem] == "webwork2":
-            log.debug(
-                "server-to-ptx: {}\n{}\n{}\n{}".format(
-                    problem, ww_domain_path, source[problem], ww_reps_file
-                )
-            )
-        elif origin[problem] == "generated":
-            if ww_reps_version == "2":
-                log.debug(
-                    "server-to-ptx: {}\n{}\n{}\n{}".format(
-                        problem, ww_domain_path, pgdense[problem], ww_reps_file
-                    )
-                )
-            elif ww_reps_version == "1":
-                log.debug(
-                    "server-to-ptx: {}\n{}\n{}\n{}".format(
-                        problem,
-                        ww_domain_path,
-                        pgdense["hint_yes_solution_yes"][problem],
-                        ww_reps_file,
-                    )
+                    else ("problemSource", pgbase64["hint_yes_solution_yes"])
                 )
 
-        # Ready, go out on the wire
-        try:
             if ww_reps_version == "2" and ww_minor_version >= 19:
-                response = session.post(ww_domain_path, data=server_params)
+                server_params = {
+                    "showSolutions": "1",
+                    "showHints": "1",
+                    "displayMode": "PTX",
+                    "courseID": courseID,
+                    "user": user,
+                    "passwd": passwd,
+                    "outputformat": "ptx",
+                    "problemSeed": seed[problem],
+                    "problemUUID": problem,
+                }
+                server_params.update(server_params_source)
             else:
-                response = session.get(ww_domain_path, params=server_params)
-            log.debug("Getting problem response from: " + response.url)
+                server_params = (
+                    ("answersSubmitted", "0"),
+                    ("showSolutions", "1"),
+                    ("showHints", "1"),
+                    ("displayMode", "PTX"),
+                    ("courseID", courseID),
+                    ("user", user),
+                    ("passwd", passwd),
+                    ("outputformat", "ptx"),
+                    server_params_source,
+                    ("problemSeed", seed[problem]),
+                    ("problemUUID", problem),
+                )
 
-        except requests.exceptions.RequestException as e:
-            root_cause = str(e)
-            msg = "PTX:ERROR: there was a problem collecting a problem,\n Server: {}\nRequest Parameters: {}\n"
-            raise ValueError(msg.format(ww_domain_path, server_params) + root_cause)
+            msg = "sending {} to server to save in {}: origin is '{}'"
+            log.info(msg.format(problem, ww_reps_file, origin[problem]))
+            if origin[problem] == "external" or origin[problem] == "webwork2":
+                log.debug(
+                    "server-to-ptx: {}\n{}\n{}\n{}".format(
+                        problem, ww_domain_path, source[problem], ww_reps_file
+                    )
+                )
+            elif origin[problem] == "generated":
+                if ww_reps_version == "2":
+                    log.debug(
+                        "server-to-ptx: {}\n{}\n{}\n{}".format(
+                            problem, ww_domain_path, pgdense[problem], ww_reps_file
+                        )
+                    )
+                elif ww_reps_version == "1":
+                    log.debug(
+                        "server-to-ptx: {}\n{}\n{}\n{}".format(
+                            problem,
+                            ww_domain_path,
+                            pgdense["hint_yes_solution_yes"][problem],
+                            ww_reps_file,
+                        )
+                    )
+
+            # Ready, go out on the wire
+            try:
+                if ww_reps_version == "2" and ww_minor_version >= 19:
+                    response = session.post(ww_domain_path, data=server_params)
+                else:
+                    response = session.get(ww_domain_path, params=server_params)
+                log.debug("Getting problem response from: " + response.url)
+
+            except requests.exceptions.RequestException as e:
+                root_cause = str(e)
+                msg = "PTX:ERROR: there was a problem collecting a problem,\n Server: {}\nRequest Parameters: {}\n"
+                raise ValueError(msg.format(ww_domain_path, server_params) + root_cause)
+
+            # TODO: Instead of this use a different variable shared by the local script approach.
+            response = response.text
 
         # Check for errors with PG processing
         # Get booleans signaling badness: file_empty, no_compile, bad_xml, no_statement
-        file_empty = "ERROR:  This problem file was empty!" in response.text
+        file_empty = "ERROR:  This problem file was empty!" in response
 
         no_compile = (
-            "ERROR caught by Translator while processing" in response.text
+            "ERROR caught by Translator while processing" in response
         )
 
         bad_xml = False
         try:
-            response_root = ET.fromstring(bytes(response.text, encoding='utf-8'))
+            response_root = ET.fromstring(bytes(response, encoding='utf-8'))
         except:
             response_root = ET.Element("webwork")
             bad_xml = True
@@ -1490,7 +1538,7 @@ def webwork_to_xml(
         # If we are aborting upon recoverable errors...
         if abort_early:
             if badness:
-                debugging_help = response.text
+                debugging_help = response
                 if origin[problem] == "generated" and no_compile:
                     debugging_help += "\n" + pghuman[problem]
                 raise ValueError(
@@ -1521,7 +1569,7 @@ def webwork_to_xml(
         # something like \x85 would be vald XML, but may not be OK in some translations
 
         verbatim_split = re.split(
-            r"(\\verb\x85.*?\x85|\\verb\x1F.*?\x1F|\\verb\r.*?\r)", response.text
+            r"(\\verb\x85.*?\x85|\\verb\x1F.*?\x1F|\\verb\r.*?\r)", response
         )
         response_text = ""
         for item in verbatim_split:
@@ -1570,11 +1618,15 @@ def webwork_to_xml(
         count = 0
         # ww_image_url will be the URL to an image file used by the problem on the ww server
         for match in re.finditer(graphics_pattern, response_text):
-            ww_image_url = match.group(1)
-            # strip away the scheme and location, if present (e.g 'https://webwork-ptx.aimath.org/')
-            ww_image_url_parsed = urllib.parse.urlparse(ww_image_url)
-            ww_image_scheme = ww_image_url_parsed.scheme
-            ww_image_full_path = ww_image_url_parsed.path
+            if static_processing == 'local' and origin[problem] != 'webwork2':
+                ww_image_full_path = match.group(1)
+                ww_image_scheme = ''
+            else:
+                ww_image_url = match.group(1)
+                # strip away the scheme and location, if present (e.g 'https://webwork-ptx.aimath.org/')
+                ww_image_url_parsed = urllib.parse.urlparse(ww_image_url)
+                ww_image_scheme = ww_image_url_parsed.scheme
+                ww_image_full_path = ww_image_url_parsed.path
             count += 1
             # split the full path into (path, file). path could theoretically be empty.
             ww_image_path, ww_image_filename = os.path.split(ww_image_full_path)
@@ -1617,31 +1669,42 @@ def webwork_to_xml(
                 response_text = response_text.replace(
                     ww_image_full_path, "images/" + ptx_image
                 )
-            # download actual image files
-            # http://stackoverflow.com/questions/13137817/how-to-download-image-using-requests
-            try:
-                image_response = session.get(image_url)
-            except requests.exceptions.RequestException as e:
-                root_cause = str(e)
-                msg = "PTX:ERROR: there was a problem downloading an image file,\n URL: {}\n"
-                raise ValueError(msg.format(image_url) + root_cause)
-            # and save the image itself
-            destination_image_file = os.path.join(ww_images_dir, ptx_image_filename)
-            try:
-                with open(destination_image_file, "wb") as image_file:
-                    msg = "saving image file {} {} in {}"
-                    qualifier = ""
-                    if image_extension == ".tgz":
-                        qualifier = "(contents)"
-                    log.info(msg.format(ptx_image_filename, qualifier, ww_images_dir))
-                    image_file.write(image_response.content)
-            except Exception as e:
-                root_cause = str(e)
-                msg = "PTX:ERROR: there was a problem saving an image file,\n Filename: {}\n"
-                raise ValueError(
-                    msg.format(destination_image_file)
-                    + root_cause
-                )
+            if static_processing == 'local' and origin[problem] != 'webwork2':
+                image_local_path = ww_image_full_path.replace('/pg_files/tmp', tmp_dir)
+                destination_image_file = os.path.join(ww_images_dir, ptx_image_filename)
+
+                try:
+                    os.rename(image_local_path, destination_image_file)
+                except Exception as e:
+                    raise ValueError("PTX:ERROR:   There was an error moving the image file {} to {}.\n".format(
+                        image_local_path, destination_image_file
+                    ) + str(e))
+            else:
+                # download actual image files
+                # http://stackoverflow.com/questions/13137817/how-to-download-image-using-requests
+                try:
+                    image_response = session.get(image_url)
+                except requests.exceptions.RequestException as e:
+                    root_cause = str(e)
+                    msg = "PTX:ERROR: there was a problem downloading an image file,\n URL: {}\n"
+                    raise ValueError(msg.format(image_url) + root_cause)
+                # and save the image itself
+                destination_image_file = os.path.join(ww_images_dir, ptx_image_filename)
+                try:
+                    with open(destination_image_file, "wb") as image_file:
+                        msg = "saving image file {} {} in {}"
+                        qualifier = ""
+                        if image_extension == ".tgz":
+                            qualifier = "(contents)"
+                        log.info(msg.format(ptx_image_filename, qualifier, ww_images_dir))
+                        image_file.write(image_response.content)
+                except Exception as e:
+                    root_cause = str(e)
+                    msg = "PTX:ERROR: there was a problem saving an image file,\n Filename: {}\n"
+                    raise ValueError(
+                        msg.format(destination_image_file)
+                        + root_cause
+                    )
             # unpack if it's a tgz
             if image_extension == ".tgz":
                 tgzfile = tarfile.open(destination_image_file)
