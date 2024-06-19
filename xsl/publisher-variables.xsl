@@ -1231,6 +1231,11 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
     <xsl:apply-templates select="$publisher-attribute-options/webwork/pi:pub-attribute[@name='static-processing']" mode="set-pubfile-variable"/>
 </xsl:variable>
 
+<!-- Location of PG library for local static processing -->
+<xsl:variable name="webwork-pg-location">
+    <xsl:apply-templates select="$publisher-attribute-options/webwork/pi:pub-attribute[@name='pg-location']" mode="set-pubfile-variable"/>
+</xsl:variable>
+
 <!-- How to process PG for interactive outut -->
 <xsl:variable name="webwork-interactive-processing">
     <xsl:apply-templates select="$publisher-attribute-options/webwork/pi:pub-attribute[@name='interactive-processing']" mode="set-pubfile-variable"/>
@@ -3150,6 +3155,7 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
         <pi:pub-attribute name="task-reveal" default="all" options="preceding-correct"/>
         <pi:pub-attribute name="static-processing" default="webwork2" options="local renderer"/>
         <pi:pub-attribute name="interactive-processing" default="webwork2" options="renderer"/>
+        <pi:pub-attribute name="pg-location" default="/opt/webwork/pg" freeform="yes"/>
     </webwork>
     <revealjs>
         <appearance>

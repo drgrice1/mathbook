@@ -1061,14 +1061,6 @@ def webwork_to_xml(
         "string parameters passed to extraction stylesheet: {}".format(stringparams)
     )
 
-    static_processing = 'webwork2'
-    if pub_file:
-        # parse publisher file, xinclude is conceivable
-        # for multiple similar publisher files with common parts
-        pub_tree = ET.parse(pub_file)
-        pub_tree.xinclude()
-        static_processing = pub_tree.xpath("/publication/webwork/@static-processing")[0]
-
     # Either we have a "generated" directory, or we must assume placing everything in dest_dir
     generated_dir, _ = get_managed_directories(xml_source, pub_file)
     if generated_dir:
@@ -1114,8 +1106,14 @@ def webwork_to_xml(
             "passwd": ww_xml.find("server-params-pub").find("password").text,
             "disableCookies": '1'
         }
+        static_processing = ww_xml.find("processing").attrib["static"]
+        interactive_processing = ww_xml.find("processing").attrib["interactive"]
+        pg_location = ww_xml.find("processing").attrib["pg-location"]
     else:
         server_params_pub = {}
+        static_processing = 'webwork2'
+        interactive_processing = 'webwork2'
+        pg_location = '/opt/webwork/pg'
 
     # ideally, pub_file is in use, in which case server_params_pub is nonempty.
     # if no pub_file in use, rely on server_params.
@@ -1327,7 +1325,7 @@ def webwork_to_xml(
                     ],
                     text=True,
                     stdout=subprocess.PIPE,
-                    env={ "PG_ROOT": '/opt/webwork/pg' }
+                    env={ "PG_ROOT": pg_location }
                 ).communicate()[0]
             except Exception as e:
                 raise ValueError("PTX:ERROR:   There was a an error executing the PG script.\n" + str(e))
