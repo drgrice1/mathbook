@@ -1672,7 +1672,7 @@ def webwork_to_xml(
                 destination_image_file = os.path.join(ww_images_dir, ptx_image_filename)
 
                 try:
-                    os.rename(image_local_path, destination_image_file)
+                    shutil.copy2(image_local_path, destination_image_file)
                 except Exception as e:
                     raise ValueError("PTX:ERROR:   There was an error moving the image file {} to {}.\n".format(
                         image_local_path, destination_image_file
