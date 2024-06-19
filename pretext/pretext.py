@@ -1312,6 +1312,10 @@ def webwork_to_xml(
                 server_params_source = ['--source', pghuman[problem]]
             else:
                 server_params_source = ['--sourceFilePath', source[problem].replace('external/', '')]
+
+            msg = "sending {} to script to save in {}: origin is '{}'"
+            log.info(msg.format(problem, ww_reps_file, origin[problem]))
+
             try:
                 response = subprocess.Popen(
                     [
@@ -1672,6 +1676,13 @@ def webwork_to_xml(
                 destination_image_file = os.path.join(ww_images_dir, ptx_image_filename)
 
                 try:
+                    log.info(
+                        "saving image file {} {} in {}".format(
+                            ptx_image_filename,
+                            "(contents)" if image_extension == ".tgz" else "",
+                            ww_images_dir
+                        )
+                    )
                     shutil.copy2(image_local_path, destination_image_file)
                 except Exception as e:
                     raise ValueError("PTX:ERROR:   There was an error moving the image file {} to {}.\n".format(
