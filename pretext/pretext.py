@@ -1059,6 +1059,15 @@ def webwork_to_xml(
     if generated_dir:
         ww_reps_dir = os.path.join(generated_dir, "webwork")
         ww_images_dir = os.path.join(ww_reps_dir, "images")
+        ww_generated_macros_dir = os.path.join(ww_reps_dir, "macros")
+
+        pathlib.Path(generated_dir).mkdir(exist_ok=True)
+        pathlib.Path(ww_reps_dir).mkdir(exist_ok=True)
+        pathlib.Path(ww_images_dir).mkdir(exist_ok=True)
+        pathlib.Path(ww_generated_macros_dir).mkdir(exist_ok=True)
+
+        pg_macros(xml_source, pub_file, stringparams, ww_generated_macros_dir)
+
     else:
         msg = "".join(
             [
