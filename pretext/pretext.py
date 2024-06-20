@@ -1108,7 +1108,7 @@ def webwork_to_xml(
             "user": extracted_pg_xml.find("server-params-pub").find("user-id").text,
             "passwd": extracted_pg_xml.find("server-params-pub").find("password").text,
             "disableCookies": '1',
-            "renderapi": ww_xml.find("server-params-pub").find("renderapi").text
+            "renderapi": extracted_pg_xml.find("server-params-pub").find("renderapi").text
         }
         static_processing = extracted_pg_xml.find("processing").attrib["static"]
         interactive_processing = extracted_pg_xml.find("processing").attrib["interactive"]
@@ -1162,7 +1162,8 @@ def webwork_to_xml(
         courseID        = server_params_pub["courseID"]
         user            = server_params_pub["user"]
         passwd          = server_params_pub["passwd"]
-        renderapi       = sanitize_url(server_params_pub["renderapi"])
+        if static_processing == "renderer":
+            renderapi       = sanitize_url(server_params_pub["renderapi"])
 
     webwork2_domain_webwork2 = webwork2_domain + "/webwork2/"
     webwork2_render_rpc = webwork2_domain_webwork2 + "render_rpc"
@@ -1383,19 +1384,19 @@ def webwork_to_xml(
 
             server_params = {
                 "showSolutions": "1",
-                 "showHints": "1",
-                 "displayMode": "PTX",
-                 "courseID": courseID,
-                 "user": user,
-                 "passwd": passwd,
-                 "outputformat": "ptx",
-                 "problemSeed": seed[problem],
-                 "problemUUID": problem,
-             }   
-             server_params.update(server_params_source)
-             
-             response = renderer_session.post(renderapi, data=server_params)
-             response = response.text
+                "showHints": "1",
+                "displayMode": "PTX",
+                "courseID": courseID,
+                "user": user,
+                "passwd": passwd,
+                "outputformat": "ptx",
+                "problemSeed": seed[problem],
+                "problemUUID": problem,
+            }
+            server_params.update(server_params_source)
+
+            response = renderer_session.post(renderapi, data=server_params)
+            response = response.text
 
         else:
             # If and only if the server is version 2.16, we adjust PG code to use PGtikz.pl
@@ -2009,9 +2010,14 @@ def webwork_to_xml(
         raise ValueError(msg.format(include_file_name) + root_cause)
 
     # close session to avoid resource wanrnings
-    webwork2_session.close() if webwork2_session
-    renderer_session.close() if renderer_session
-
+    try:
+        webwork2_session.close()
+    except:
+        pass
+    try:
+        renderer_session.close()
+    except:
+        pass
 
 ################################
 #
