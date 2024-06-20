@@ -1098,7 +1098,8 @@ def webwork_to_xml(
             "courseID": extracted_pg_xml.find("server-params-pub").find("course-id").text,
             "user": extracted_pg_xml.find("server-params-pub").find("user-id").text,
             "passwd": extracted_pg_xml.find("server-params-pub").find("password").text,
-            "disableCookies": '1'
+            "disableCookies": '1',
+            "renderapi": ww_xml.find("server-params-pub").find("renderapi").text
         }
         static_processing = extracted_pg_xml.find("processing").attrib["static"]
         interactive_processing = extracted_pg_xml.find("processing").attrib["interactive"]
@@ -1106,11 +1107,12 @@ def webwork_to_xml(
     else:
         no_publication_file = True
         server_params_pub = {
-            "webwork2_domain": "https://webwork-dev.aimath.org",
+            "webwork2_domain": "https://webwork-ptx.aimath.org",
             "courseID": "anonymous",
             "user": "anonymous",
             "passwd": "anonymous",
-            "disableCookies": '1'
+            "disableCookies": '1',
+            "renderapi": "https://pg-renderer.aimath.org"
         }
         static_processing = 'webwork2'
         interactive_processing = 'webwork2'
@@ -1151,6 +1153,7 @@ def webwork_to_xml(
         courseID        = server_params_pub["courseID"]
         user            = server_params_pub["user"]
         passwd          = server_params_pub["passwd"]
+        renderapi       = sanitize_url(server_params_pub["renderapi"])
 
     webwork2_domain_webwork2 = webwork2_domain + "/webwork2/"
     webwork2_render_rpc = webwork2_domain_webwork2 + "render_rpc"
@@ -1163,8 +1166,13 @@ def webwork_to_xml(
     # Establish webwork2 version if there is any need to use webwork2
     need_for_webwork2 = (
         (static_processing == 'webwork2')
-        or (interactive_processing == 'webwork2')
         or (extracted_pg_xml.xpath("//problem[@origin='webwork2']"))
+    )
+
+    # Establish if there is any need to use renderer
+    need_for_renderer = (
+        (static_processing == 'renderer')
+        and (extracted_pg_xml.xpath("//problem[@origin!='webwork2']"))
     )
 
     # at least on Mac installations, requests module is not standard
@@ -1291,7 +1299,10 @@ def webwork_to_xml(
     # using a "Session()" will pool connection information
     # since we always hit the same server, this should increase performance
     if need_for_webwork2:
-        session = requests.Session()
+        webwork2_session = requests.Session()
+
+    if need_for_renderer:
+        renderer_session = requests.Session()
 
     # begin XML tree
     # then we loop through all problems, appending children
@@ -1355,6 +1366,28 @@ def webwork_to_xml(
                 ).communicate()[0]
             except Exception as e:
                 raise ValueError("PTX:ERROR:   There was a an error executing the PG script.\n" + str(e))
+        elif static_processing == 'renderer' and origin[problem] != 'webwork2':
+            if origin[problem] == "external":
+                server_params_source = {"rawProblemSource":pathlib.Path(path[problem]).read_text()}
+            else:
+                server_params_source = {"rawProblemSource":pghuman[problem]}
+
+            server_params = {
+                "showSolutions": "1",
+                 "showHints": "1",
+                 "displayMode": "PTX",
+                 "courseID": courseID,
+                 "user": user,
+                 "passwd": passwd,
+                 "outputformat": "ptx",
+                 "problemSeed": seed[problem],
+                 "problemUUID": problem,
+             }   
+             server_params.update(server_params_source)
+             
+             response = renderer_session.post(renderapi, data=server_params)
+             response = response.text
+
         else:
             # If and only if the server is version 2.16, we adjust PG code to use PGtikz.pl
             # instead of PGlateximage.pl
@@ -1487,9 +1520,9 @@ def webwork_to_xml(
             # Ready, go out on the wire
             try:
                 if ww_reps_version == "2" and webwork2_minor_version >= 19:
-                    response = session.post(webwork2_path, data=server_params)
+                    response = webwork2_session.post(webwork2_path, data=server_params)
                 else:
-                    response = session.get(webwork2_path, params=server_params)
+                    response = webwork2_session.get(webwork2_path, params=server_params)
                 log.debug("Getting problem response from: " + response.url)
 
             except requests.exceptions.RequestException as e:
@@ -1715,7 +1748,7 @@ def webwork_to_xml(
                 # download actual image files
                 # http://stackoverflow.com/questions/13137817/how-to-download-image-using-requests
                 try:
-                    image_response = session.get(image_url)
+                    image_response = webwork2_session.get(image_url)
                 except requests.exceptions.RequestException as e:
                     root_cause = str(e)
                     msg = "PTX:ERROR: there was a problem downloading an image file,\n URL: {}\n"
@@ -1967,7 +2000,8 @@ def webwork_to_xml(
         raise ValueError(msg.format(include_file_name) + root_cause)
 
     # close session to avoid resource wanrnings
-    session.close()
+    webwork2_session.close() if webwork2_session
+    renderer_session.close() if renderer_session
 
 
 ################################

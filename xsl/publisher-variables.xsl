@@ -1241,6 +1241,10 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
     <xsl:apply-templates select="$publisher-attribute-options/webwork/pi:pub-attribute[@name='interactive-processing']" mode="set-pubfile-variable"/>
 </xsl:variable>
 
+<xsl:variable name="webwork-renderapi">
+    <xsl:apply-templates select="$publisher-attribute-options/webwork/pi:pub-attribute[@name='renderapi']" mode="set-pubfile-variable"/>
+</xsl:variable>
+
 <!-- WeBWork problem representations are formed by Python routines  -->
 <!-- in the   pretext.py  module that communicates with a WeBWorK   -->
 <!-- server.  So this filename is only relevant for *consumption"   -->
@@ -3156,6 +3160,7 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
         <pi:pub-attribute name="static-processing" default="webwork2" options="local renderer"/>
         <pi:pub-attribute name="interactive-processing" default="webwork2" options="renderer"/>
         <pi:pub-attribute name="pg-location" default="/opt/webwork/pg" freeform="yes"/>
+        <pi:pub-attribute name="renderapi" default="https://pg-renderer.aimath.org" freeform="yes"/>
     </webwork>
     <revealjs>
         <appearance>
