@@ -4203,6 +4203,7 @@ def verify_input_directory(inputdir):
 
 def get_managed_directories(xml_source, pub_file):
     """Returns pair: (generated, external) absolute paths, derived from publisher file"""
+    import pathlib
 
     # N.B. manage attributes carefully to distinguish
     # absent (None) versus empty string value ('')
@@ -4240,8 +4241,7 @@ def get_managed_directories(xml_source, pub_file):
                 [
                     'the directory "{}" implied by the value "{}" in the',
                     '"source/directories/@{}" entry of the publisher file does not',
-                    "exist. Check the spelling, create the necessary directory, or entirely",
-                    'remove the whole "source/directories" element of the publisher file.'
+                    "exist and could not be created. Check file permissions."
                 ]
             )
             # attribute absent => None
@@ -4252,6 +4252,7 @@ def get_managed_directories(xml_source, pub_file):
                 else:
                     abs_path = os.path.join(source_dir, raw_path)
                 try:
+                    pathlib.Path(abs_path).mkdir(parents=True, exist_ok=True)
                     generated = verify_input_directory(abs_path)
                 except:
                     raise ValueError(missing_dir_error.format(abs_path, raw_path, gen_attr))
@@ -4263,6 +4264,7 @@ def get_managed_directories(xml_source, pub_file):
                 else:
                     abs_path = os.path.join(source_dir, raw_path)
                 try:
+                    pathlib.Path(abs_path).mkdir(parents=True, exist_ok=True)
                     external = verify_input_directory(abs_path)
                 except:
                     raise ValueError(missing_dir_error.format(abs_path, raw_path, ext_attr))
