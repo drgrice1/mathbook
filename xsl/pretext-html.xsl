@@ -214,8 +214,8 @@ along with MathBook XML.  If not, see <http://www.gnu.org/licenses/>.
 <!-- making dynamic exercises.                                           -->
 
 <xsl:variable name="webwork-reps-version" select="$document-root//webwork-reps[1]/@version"/>
-<xsl:variable name="webwork-major-version" select="$document-root//webwork-reps[1]/@ww_major_version"/>
-<xsl:variable name="webwork-minor-version" select="$document-root//webwork-reps[1]/@ww_minor_version"/>
+<xsl:variable name="webwork-major-version" select="$document-root//webwork-reps[1]/@webwork2_major_version"/>
+<xsl:variable name="webwork-minor-version" select="$document-root//webwork-reps[1]/@webwork2_minor_version"/>
 
 <xsl:variable name="webwork-domain">
     <xsl:choose>
@@ -10461,7 +10461,7 @@ along with MathBook XML.  If not, see <http://www.gnu.org/licenses/>.
             </xsl:apply-templates>
         </xsl:attribute>
         <xsl:attribute name="data-origin">
-            <xsl:value-of select="rendering-data/@origin"/>
+            <xsl:value-of select="rendering-data/@problemSource"/>
         </xsl:attribute>
         <xsl:choose>
             <xsl:when test="rendering-data/@problemSource">

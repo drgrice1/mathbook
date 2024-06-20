@@ -34,26 +34,30 @@
 
 <!-- This style sheet is intended to be used by pretext.py. It makes an    -->
 <!-- ephemeral XML tree with data about each webwork exercise in the PTX   -->
-<!-- project. This will be used by pretext.py in conjuction with some form -->
-<!-- of renderer (webwork2, local PG, or the standalone renderer) to       -->
-<!-- create an XML file called webwork-representations.xml with various    -->
-<!-- representations of each                                               -->
-
-<!-- Then for each exercise, we record:                                    -->
-<!-- 1.  "generated" (it was authored in PTX and has been exported to a    -->
-<!--     file in generated/pg/)                                            -->
-<!--     or "external" (it is specified in source using a file path to     -->
-<!--     within external/pg/)                                              -->
-<!--     or "webwork2" (it is specified in source using a file path,       -->
-<!--     to somewhere in a webwork2 host course)                           -->
-<!-- 1b. if it is copied, from which webwork?                              -->
-<!-- 2.  a seed for randomization (with a default explicitly declared)     -->
-<!-- 3.  source (a problem's file path, either in "generated", "external", -->
-<!--     or in a webwork2 host course)                                     -->
-<!-- 4.  human readable PG (for PTX-authored exercises)                    -->
-<!-- 5.  PG optimized (and less human-readable) for use in PTX output modes-->
+<!-- project. This ephemeral tree also has some global publisher variable  -->
+<!-- data for how PG should be processed. This tree will be used by        -->
+<!-- pretext.py in conjuction with some form of renderer (webwork2, local  -->
+<!-- PG, or the standalone renderer) to create an XML file called          -->
+<!-- webwork-representations.xml with various representations of each      -->
 
 <!-- The top of the ephemeral XML tree has some global attributes.         -->
+
+<!-- Then for each exercise, we record:                                    -->
+<!-- 1.  origin: there are three possible values                           -->
+<!--        "generated" (it was authored in PTX)                           -->
+<!--        "external" (it is a local .pg file within the external folder  -->
+<!--            indicated by @local on the webwork element)                -->
+<!--        "webwork2" (it is a pg file accessible from a webwork2 host    -->
+<!--            course's templates folder indicated by @source on the      -->
+<!--            webwork element)                                           -->
+<!-- 1b. if it is copied, what is an id from which it was copied?          -->
+<!-- 2.  a seed for randomization                                          -->
+<!-- 3.  path: a file path to a .pg version of the problem                 -->
+<!--         generated/pg/path-defined-by-document-structure               -->
+<!--         exteral/path-defined-by-@local                                -->
+<!--         path-defined-by-@source                                       -->
+<!-- 4.  pghuman: human readable PG (for generated exercises only)         -->
+<!-- 5.  PG that is somewhat minimized (and less human-readable)           -->
 
 <!-- The pretext/pretext script (-c webwork) uses all this to build a      -->
 <!-- single XML file (called webwork-representations.xml) containing       -->
@@ -113,9 +117,9 @@
         <!-- This will be an empty element if there was no publication file. -->
         <server-params-pub>
             <xsl:if test="$publisher">
-                <ww-domain>
+                <webwork2-domain>
                     <xsl:value-of select="$webwork-server"/>
-                </ww-domain>
+                </webwork2-domain>
                 <course-id>
                     <xsl:value-of select="$webwork-course"/>
                 </course-id>
@@ -145,8 +149,7 @@
     </ww-extraction>
 </xsl:template>
 
-<xsl:template match="webwork[@source]" mode="extraction">
-    <!-- Define values for the visible-id as key -->
+<xsl:template match="webwork[@source|@local|statement|task]" mode="extraction">
     <xsl:variable name="problem">
         <xsl:value-of select="@ww-id"/>
     </xsl:variable>
@@ -156,7 +159,17 @@
         </xsl:attribute>
         <!-- 1. a generated|external|webwork2 flag                                 -->
         <xsl:attribute name="origin">
-            <xsl:text>webwork2</xsl:text>
+            <xsl:choose>
+                <xsl:when test="statement|task">
+                    <xsl:text>generated</xsl:text>
+                </xsl:when>
+                <xsl:when test="@local">
+                    <xsl:text>external</xsl:text>
+                </xsl:when>
+                <xsl:when test="@source">
+                    <xsl:text>webwork2</xsl:text>
+                </xsl:when>
+            </xsl:choose>
         </xsl:attribute>
         <!-- 1b. if this problem is a copy, record where it was copied from        -->
         <xsl:if test="@copied-from">
@@ -168,120 +181,70 @@
         <xsl:attribute name="seed">
             <xsl:apply-templates select="." mode="get-seed" />
         </xsl:attribute>
-        <!-- 3. source file                                                        -->
-        <xsl:attribute name="source">
-            <xsl:value-of select="@source" />
-        </xsl:attribute>
-    </problem>
-</xsl:template>
-
-<xsl:template match="webwork[@local]" mode="extraction">
-    <!-- Define values for the visible-id as key -->
-    <xsl:variable name="problem">
-        <xsl:value-of select="@ww-id"/>
-    </xsl:variable>
-    <problem>
-        <xsl:attribute name="id">
-            <xsl:value-of select="$problem" />
-        </xsl:attribute>
-        <!-- 1. a generated|external|webwork2 flag                                 -->
-        <xsl:attribute name="origin">
-            <xsl:text>external</xsl:text>
-        </xsl:attribute>
-        <!-- 1b. if this problem is a copy, record where it was copied from        -->
-        <xsl:if test="@copied-from">
-            <xsl:attribute name="copied-from">
-                <xsl:value-of select="@copied-from"/>
-            </xsl:attribute>
-        </xsl:if>
-        <!-- 2. a seed for randomization (with a default explicitly declared)      -->
-        <xsl:attribute name="seed">
-            <xsl:apply-templates select="." mode="get-seed" />
-        </xsl:attribute>
-        <!-- 3. source file                                                        -->
-        <xsl:attribute name="source">
-            <xsl:value-of select="$external-directory"/>
-            <xsl:value-of select="@local" />
-        </xsl:attribute>
-    </problem>
-</xsl:template>
-
-<xsl:template match="webwork[statement|task]" mode="extraction">
-    <!-- Define values for the visible-id as key -->
-    <xsl:variable name="problem">
-        <xsl:value-of select="@ww-id"/>
-    </xsl:variable>
-    <problem>
-        <xsl:attribute name="id">
-            <xsl:value-of select="$problem" />
-        </xsl:attribute>
-        <!-- 1. a generated|external|webwork2 flag                                 -->
-        <xsl:attribute name="origin">
-            <xsl:text>generated</xsl:text>
-        </xsl:attribute>
-        <!-- 1b. if this problem is a copy, record where it was copied from        -->
-        <xsl:if test="@copied-from">
-            <xsl:attribute name="copied-from">
-                <xsl:value-of select="@copied-from"/>
-            </xsl:attribute>
-        </xsl:if>
-        <!-- 2. a seed for randomization (with a default explicitly declared)      -->
-        <xsl:attribute name="seed">
-            <xsl:apply-templates select="." mode="get-seed" />
-        </xsl:attribute>
-        <!-- 3. source file                                                        -->
-        <xsl:attribute name="source">
+        <!-- 3. file path                                                          -->
+        <xsl:attribute name="path">
             <xsl:apply-templates select="." mode="filename"/>
         </xsl:attribute>
-        <!-- 4. human readable PG (for PTX-authored)                               -->
-        <pghuman>
-            <xsl:apply-templates select=".">
-                <xsl:with-param name="b-hint" select="true()" />
-                <xsl:with-param name="b-solution" select="true()" />
-                <xsl:with-param name="b-human-readable" select="true()" />
-            </xsl:apply-templates>
-        </pghuman>
-        <!-- 5. PG optimized (and less human-readable) for use in PTX output modes -->
-        <pgdense hint="yes" solution="yes">
-            <xsl:apply-templates select=".">
-                <xsl:with-param name="b-hint" select="true()" />
-                <xsl:with-param name="b-solution" select="true()" />
-                <xsl:with-param name="b-human-readable" select="false()" />
-            </xsl:apply-templates>
-        </pgdense>
-        <!-- Below are only needed for WeBWorK 2.15 and earlier, -->
-        <!-- where we use an iframe for the embedding. Otherwise -->
-        <pgdense hint="no" solution="no">
-            <xsl:apply-templates select=".">
-                <xsl:with-param name="b-hint" select="false()" />
-                <xsl:with-param name="b-solution" select="false()" />
-                <xsl:with-param name="b-human-readable" select="false()" />
-            </xsl:apply-templates>
-        </pgdense>
-        <pgdense hint="no" solution="yes">
-            <xsl:apply-templates select=".">
-                <xsl:with-param name="b-hint" select="false()" />
-                <xsl:with-param name="b-solution" select="true()" />
-                <xsl:with-param name="b-human-readable" select="false()" />
-            </xsl:apply-templates>
-        </pgdense>
-        <pgdense hint="yes" solution="no">
-            <xsl:apply-templates select=".">
-                <xsl:with-param name="b-hint" select="false()" />
-                <xsl:with-param name="b-solution" select="true()" />
-                <xsl:with-param name="b-human-readable" select="false()" />
-            </xsl:apply-templates>
-        </pgdense>
+        <xsl:if test="statement|task">
+            <!-- 4. human readable PG (for PTX-authored)                               -->
+            <pghuman>
+                <xsl:apply-templates select=".">
+                    <xsl:with-param name="b-hint" select="true()" />
+                    <xsl:with-param name="b-solution" select="true()" />
+                    <xsl:with-param name="b-human-readable" select="true()" />
+                </xsl:apply-templates>
+            </pghuman>
+            <!-- 5. PG optimized (and less human-readable) for use in PTX output modes -->
+            <pgdense hint="yes" solution="yes">
+                <xsl:apply-templates select=".">
+                    <xsl:with-param name="b-hint" select="true()" />
+                    <xsl:with-param name="b-solution" select="true()" />
+                    <xsl:with-param name="b-human-readable" select="false()" />
+                </xsl:apply-templates>
+            </pgdense>
+            <!-- Below are only needed for WeBWorK 2.15 and earlier, -->
+            <!-- where we use an iframe for the embedding. Otherwise -->
+            <pgdense hint="no" solution="no">
+                <xsl:apply-templates select=".">
+                    <xsl:with-param name="b-hint" select="false()" />
+                    <xsl:with-param name="b-solution" select="false()" />
+                    <xsl:with-param name="b-human-readable" select="false()" />
+                </xsl:apply-templates>
+            </pgdense>
+            <pgdense hint="no" solution="yes">
+                <xsl:apply-templates select=".">
+                    <xsl:with-param name="b-hint" select="false()" />
+                    <xsl:with-param name="b-solution" select="true()" />
+                    <xsl:with-param name="b-human-readable" select="false()" />
+                </xsl:apply-templates>
+            </pgdense>
+            <pgdense hint="yes" solution="no">
+                <xsl:apply-templates select=".">
+                    <xsl:with-param name="b-hint" select="false()" />
+                    <xsl:with-param name="b-solution" select="true()" />
+                    <xsl:with-param name="b-human-readable" select="false()" />
+                </xsl:apply-templates>
+            </pgdense>
+        </xsl:if>
     </problem>
 </xsl:template>
 
 <!-- Append a filename to the directory path              -->
-<xsl:template match="webwork[statement|task]" mode="filename">
-    <xsl:value-of select="$generated-directory"/>
-    <xsl:text>pg/</xsl:text>
-    <xsl:apply-templates select="." mode="directory-path" />
-    <xsl:apply-templates select="parent::exercise" mode="numbered-title-filesafe" />
-    <xsl:text>.pg</xsl:text>
+<xsl:template match="webwork[@source|@local|statement|task]" mode="filename">
+    <xsl:choose>
+        <xsl:when test="@source">
+            <xsl:value-of select="@source"/>
+        </xsl:when>
+        <xsl:when test="@local">
+            <xsl:value-of select="concat($external-directory,@local)"/>
+        </xsl:when>
+        <xsl:when test="statement|task">
+            <xsl:value-of select="concat($generated-directory, 'pg/')"/>
+            <xsl:apply-templates select="." mode="directory-path" />
+            <xsl:apply-templates select="parent::exercise" mode="numbered-title-filesafe" />
+            <xsl:text>.pg</xsl:text>        
+        </xsl:when>
+    </xsl:choose>
 </xsl:template>
 
 <!-- Directory path, recursively climb structural nodes,  -->
