@@ -1067,6 +1067,7 @@ def webwork_to_xml(
         pathlib.Path(ww_generated_macros_dir).mkdir(exist_ok=True)
 
         pg_macros(xml_source, pub_file, stringparams, ww_generated_macros_dir)
+        webwork_sets(xml_source, pub_file, stringparams, dest_dir, False)
 
     else:
         msg = "".join(
@@ -2041,7 +2042,7 @@ def webwork_sets(xml_source, pub_file, stringparams, dest_dir, tgz):
     # But it is the only thing in the tmp_dir
     folder_name = os.listdir(tmp_dir)[0]
     folder = os.path.join(tmp_dir, folder_name)
-    macros_folder = os.path.join(folder, 'macros')
+    macros_folder = os.path.join(folder, 'webwork', 'macros')
     os.mkdir(macros_folder)
     pg_macros(xml_source, pub_file, stringparams, macros_folder)
     if tgz:

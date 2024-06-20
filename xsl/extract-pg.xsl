@@ -182,7 +182,7 @@
         </xsl:if>
         <!-- 2. a seed for randomization (with a default explicitly declared)      -->
         <xsl:attribute name="seed">
-            <xsl:apply-templates select="." mode="get-seed" />
+            <xsl:apply-templates select="." mode="get-seed"/>
         </xsl:attribute>
         <!-- 3. file path                                                          -->
         <xsl:attribute name="path">
@@ -242,7 +242,7 @@
             <xsl:value-of select="concat($external-directory,@local)"/>
         </xsl:when>
         <xsl:when test="statement|task">
-            <xsl:value-of select="concat($generated-directory, 'pg/')"/>
+            <xsl:value-of select="concat($generated-directory, 'webwork/pg/')"/>
             <xsl:apply-templates select="." mode="directory-path" />
             <xsl:apply-templates select="parent::exercise" mode="numbered-title-filesafe" />
             <xsl:text>.pg</xsl:text>        
