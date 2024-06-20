@@ -3160,7 +3160,7 @@ along with PreTeXt.  If not, see <http://www.gnu.org/licenses/>.
         <pi:pub-attribute name="static-processing" default="webwork2" options="local renderer"/>
         <pi:pub-attribute name="interactive-processing" default="webwork2" options="renderer"/>
         <pi:pub-attribute name="pg-location" default="/opt/webwork/pg" freeform="yes"/>
-        <pi:pub-attribute name="renderapi" default="https://pg-renderer.aimath.org" freeform="yes"/>
+        <pi:pub-attribute name="renderapi" default="https://webwork-dev.aimath.org/renderer" freeform="yes"/>
     </webwork>
     <revealjs>
         <appearance>
