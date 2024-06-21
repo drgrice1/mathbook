@@ -1186,6 +1186,12 @@ def webwork_to_xml(
         and (extracted_pg_xml.xpath("//problem[@origin!='webwork2']"))
     )
 
+    # Establish if there is any need to use a socket
+    need_for_socket = (
+        (static_processing == 'local')
+        and (extracted_pg_xml.xpath("//problem[@origin!='webwork2']"))
+    )
+
     # at least on Mac installations, requests module is not standard
     if need_for_webwork2 or need_for_renderer:
         try:
@@ -1315,6 +1321,43 @@ def webwork_to_xml(
     if need_for_renderer:
         renderer_session = requests.Session()
 
+    clientsocket = None
+
+    if need_for_socket:
+        import socket
+        import json
+
+        perl_executable_cmd = get_executable_cmd('perl')[0]
+        pgscript = os.path.join(get_ptx_path(), 'script', 'webwork', 'pg-ptx.pl')
+
+        extra_macro_dirs = []
+
+        if os.path.exists(os.path.join(generated_dir, 'webwork', 'macros')):
+            extra_macro_dirs.append('--extraMacroDir')
+            extra_macro_dirs.append(os.path.join(generated_dir, 'webwork', 'macros'))
+
+        if os.path.exists(os.path.join(external_dir, 'macros')):
+            extra_macro_dirs.append('--extraMacroDir')
+            extra_macro_dirs.append(os.path.join(external_dir, 'macros'))
+
+        proc = subprocess.Popen([
+            perl_executable_cmd, pgscript,
+            '--externalFileDir', external_dir,
+            '--tempDirectory', tmp_dir,
+            *extra_macro_dirs,
+        ], stdin=None, stdout=None, stderr=None, env={"PG_ROOT": pg_location, "MOJO_MODE": 'production'})
+        clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        count = 1
+        while count > 0 and count < 10:
+            try:
+                clientsocket.connect(('localhost', 8089))
+                count = 0
+            except:
+                ++count
+        if count > 0:
+            raise ValueError("PTX:ERROR: unable to establish connection to local socket")
+
     # begin XML tree
     # then we loop through all problems, appending children
     NSMAP = {"xml": "http://www.w3.org/XML/1998/namespace"}
@@ -1337,46 +1380,19 @@ def webwork_to_xml(
         log.info(msg)
 
         if static_processing == 'local' and origin[problem] != 'webwork2':
-            pgscript = os.path.join(get_ptx_path(), 'script', 'webwork', 'pg-ptx.pl')
-            perl_executable_cmd = get_executable_cmd('perl')[0]
-            tmp_dir = get_temporary_directory()
-
-            extra_macro_dirs = []
-
-            generated_dir, _ = get_managed_directories(xml_source, pub_file)
-            if os.path.exists(os.path.join(generated_dir, 'webwork', 'macros')):
-                extra_macro_dirs.append('--extraMacroDir')
-                extra_macro_dirs.append(os.path.join(generated_dir, 'webwork', 'macros'))
-
-            if os.path.exists(os.path.join(external_dir, 'macros')):
-                extra_macro_dirs.append('--extraMacroDir')
-                extra_macro_dirs.append(os.path.join(external_dir, 'macros'))
+            socket_params = { "problemSeed": seed[problem], "problemUUID": problem }
 
             if origin[problem] == 'generated':
-                server_params_source = ['--source', pghuman[problem]]
+                socket_params["source"] = pghuman[problem]
             else:
-                server_params_source = ['--sourceFilePath', re.sub(r'^external\/', '', path[problem])]
+                socket_params["sourceFilePath"] = re.sub(r'^external\/', '', path[problem])
 
-            msg = "sending {} to script to save in {}: origin is '{}'"
+            msg = "sending {} to socket to save in {}: origin is '{}'"
             log.info(msg.format(problem, ww_reps_file, origin[problem]))
 
-            try:
-                response = subprocess.Popen(
-                    [
-                        perl_executable_cmd, pgscript,
-                        '--seed', seed[problem],
-                        '--uuid', problem,
-                        '--externalFileDir', external_dir,
-                        '--tempDirectory', tmp_dir,
-                        *server_params_source,
-                        *extra_macro_dirs,
-                    ],
-                    text=True,
-                    stdout=subprocess.PIPE,
-                    env={ "PG_ROOT": pg_location }
-                ).communicate()[0]
-            except Exception as e:
-                raise ValueError("PTX:ERROR:   There was a an error executing the PG script.\n" + str(e))
+            clientsocket.send(json.dumps(socket_params).encode('utf-8'))
+            response = clientsocket.recv(33554432).decode()
+
         elif static_processing == 'renderer' and origin[problem] != 'webwork2':
             if origin[problem] == "external":
                 server_params_source = {"rawProblemSource":pathlib.Path(path[problem]).read_text()}
@@ -1395,6 +1411,9 @@ def webwork_to_xml(
                 "problemUUID": problem,
             }
             server_params.update(server_params_source)
+
+            msg = "sending {} to renderer to save in {}: origin is '{}'"
+            log.info(msg.format(problem, ww_reps_file, origin[problem]))
 
             response = renderer_session.post(renderapi + '/render-ptx', data=server_params)
             response = response.text
@@ -1755,14 +1774,14 @@ def webwork_to_xml(
                     )
                     shutil.copy2(image_local_path, destination_image_file)
                 except Exception as e:
-                    raise ValueError("PTX:ERROR:   There was an error moving the image file {} to {}.\n".format(
+                    raise ValueError("PTX:ERROR:   There was an error copying the image file {} to {}.\n".format(
                         image_local_path, destination_image_file
                     ) + str(e))
             else:
                 # download actual image files
                 # http://stackoverflow.com/questions/13137817/how-to-download-image-using-requests
                 try:
-                    if static_processing == 'renderer' and origin[problem] != 'webwork2': 
+                    if static_processing == 'renderer' and origin[problem] != 'webwork2':
                         image_response = renderer_session.get(image_url)
                     else:
                         image_response = webwork2_session.get(image_url)
@@ -2025,6 +2044,10 @@ def webwork_to_xml(
         renderer_session.close()
     except:
         pass
+
+    # close the socket
+    if clientsocket:
+        clientsocket.send(b'quit')
 
 ################################
 #
