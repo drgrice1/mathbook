@@ -1171,8 +1171,8 @@ def webwork_to_xml(
     webwork2_html2xml = webwork2_domain_webwork2 + "html2xml"
 
     webwork2_version = None
-    wwebwork2_major_version = None
-    wwebwork2_minor_version = None
+    webwork2_major_version = None
+    webwork2_minor_version = None
 
     # Establish webwork2 version if there is any need to use webwork2
     need_for_webwork2 = (
@@ -1187,7 +1187,7 @@ def webwork_to_xml(
     )
 
     # at least on Mac installations, requests module is not standard
-    if need_for_webwork2:
+    if need_for_webwork2 or need_for_renderer:
         try:
             import requests  # webwork server
         except ImportError:
@@ -1711,7 +1711,10 @@ def webwork_to_xml(
             if ww_image_scheme:
                 image_url = ww_image_url
             else:
-                image_url = urllib.parse.urljoin(webwork2_domain, ww_image_full_path)
+                if static_processing == 'renderer' and origin[problem] != 'webwork2':
+                    image_url = urllib.parse.urljoin(renderapi, ww_image_full_path)
+                else:
+                    image_url = urllib.parse.urljoin(webwork2_domain, ww_image_full_path)
             # modify PTX problem source to include local versions
             if generated_dir:
                 if "xmlns:pi=" not in response_text:
@@ -1759,7 +1762,10 @@ def webwork_to_xml(
                 # download actual image files
                 # http://stackoverflow.com/questions/13137817/how-to-download-image-using-requests
                 try:
-                    image_response = webwork2_session.get(image_url)
+                    if static_processing == 'renderer' and origin[problem] != 'webwork2': 
+                        image_response = renderer_session.get(image_url)
+                    else:
+                        image_response = webwork2_session.get(image_url)
                 except requests.exceptions.RequestException as e:
                     root_cause = str(e)
                     msg = "PTX:ERROR: there was a problem downloading an image file,\n URL: {}\n"
