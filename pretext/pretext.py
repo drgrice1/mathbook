@@ -1346,12 +1346,12 @@ def webwork_to_xml(
             '--tempDirectory', tmp_dir,
             *extra_macro_dirs,
         ], stdin=None, stdout=None, stderr=None, env={"PG_ROOT": pg_location, "MOJO_MODE": 'production'})
-        clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        clientsocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
         count = 1
         while count > 0 and count < 10:
             try:
-                clientsocket.connect(('localhost', 8089))
+                clientsocket.connect(tmp_dir + '/pg-ptx.sock')
                 count = 0
             except:
                 ++count

@@ -42,7 +42,7 @@ my %translationOptions = (
 );
 
 Mojo::IOLoop->server(
-	{ port => 8089 } => sub ($loop, $stream, $id) {
+	{ path => "$tempDirectory/pg-ptx.sock" } => sub ($loop, $stream, $id) {
 		$stream->on(
 			read => async sub ($stream, $bytes) {
 				if (!$bytes || $bytes eq 'quit') {
